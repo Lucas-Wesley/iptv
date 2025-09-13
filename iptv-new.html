@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player de IPTV Inteligente</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --surface-color: #1e1e1e;
+            --primary-color: #3e82f7;
+            --text-color: #e0e0e0;
+            --border-color: #2c2c2c;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            background-color: var(--surface-color);
+            padding: 1rem;
+            text-align: center;
+            border-bottom: 2px solid var(--border-color);
+            flex-shrink: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        h1 {
+            margin: 0 20px 0 0;
+            font-size: 1.5rem;
+        }
+
+        .upload-btn-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        .btn {
+            border: 2px solid var(--primary-color);
+            color: var(--primary-color);
+            background-color: transparent;
+            padding: 8px 20px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .btn:hover {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        .upload-btn-wrapper input[type=file] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 240px;
+            background-color: var(--surface-color);
+            border-right: 1px solid var(--border-color);
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        #channel-list {
+            width: 300px;
+            background-color: #181818;
+            border-right: 1px solid var(--border-color);
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+        
+        .list-header {
+            padding: 1rem;
+            font-size: 1.1rem;
+            font-weight: bold;
+            background-color: #252525;
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+        }
+
+        .list-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+            transition: background-color 0.2s ease;
+            min-height: 40px;
+        }
+        .list-item:hover {
+            background-color: #2a2a2a;
+        }
+        .list-item.active {
+            background-color: var(--primary-color);
+            color: white;
+            font-weight: bold;
+        }
+
+        .channel-logo {
+            width: 40px;
+            height: 40px;
+            margin-right: 12px;
+            border-radius: 4px;
+            object-fit: contain;
+            background-color: transparent;
+            flex-shrink: 0;
+        }
+        .item-name {
+            font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        #player-container {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #000;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Player de IPTV Inteligente</h1>
+        <div class="upload-btn-wrapper">
+            <button class="btn">Carregar Arquivo .m3u</button>
+            <input type="file" id="m3u-upload" name="m3u-file" accept=".m3u,.m3u8"/>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <div class="sidebar" id="category-list">
+            <div class="list-header">Categorias</div>
+        </div>
+        <div id="channel-list">
+             <div class="list-header">Canais</div>
+        </div>
+        <div id="player-container">
+            <video id="videoPlayer" controls autoplay></video>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const m3uUpload = document.getElementById('m3u-upload');
+            const categoryListElement = document.getElementById('category-list');
+            const channelListElement = document.getElementById('channel-list');
+            const videoPlayer = document.getElementById('videoPlayer');
+            let hls = null; // Iniciar como nulo
+            let channelData = {};
+            let currentPlaylist = null;
+
+            // Carregar playlist automaticamente ao iniciar
+            loadPlaylistFromServer();
+
+            // Upload para servidor
+            m3uUpload.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                uploadToServer(file);
+            });
+
+            // Função para carregar playlist do servidor
+            async function loadPlaylistFromServer() {
+                try {
+                    showLoading('Carregando playlist...');
+                    
+                    const response = await fetch('/api/playlist');
+                    const data = await response.json();
+                    
+                    if (data.success !== false) {
+                        currentPlaylist = data;
+                        channelData = data.categories;
+                        
+                        // Converter estrutura para compatibilidade com código existente
+                        const categories = {};
+                        Object.keys(channelData).forEach(categoryName => {
+                            categories[categoryName] = channelData[categoryName].channels;
+                        });
+                        channelData = categories;
+                        
+                        displayCategories(Object.keys(channelData));
+                        channelListElement.innerHTML = '<div class="list-header">Canais</div>';
+                        
+                        // Salvar no localStorage para cache
+                        localStorage.setItem('iptv_playlist', JSON.stringify(data));
+                        localStorage.setItem('iptv_lastUpdate', Date.now());
+                        
+                        hideLoading();
+                        
+                        if (Object.keys(channelData).length > 0) {
+                            const firstCategory = Object.keys(channelData)[0];
+                            displayChannels(channelData[firstCategory]);
+                            document.querySelector('.category-item').classList.add('active');
+                        }
+                        
+                        console.log(`✅ Playlist carregada: ${data.metadata.totalChannels} canais em ${data.metadata.totalCategories} categorias`);
+                    } else {
+                        hideLoading();
+                        console.warn('⚠️ Nenhuma playlist encontrada no servidor');
+                        showMessage('Nenhuma playlist encontrada. Faça upload de um arquivo M3U.', 'warning');
+                    }
+                } catch (error) {
+                    hideLoading();
+                    console.error('❌ Erro ao carregar playlist:', error);
+                    
+                    // Tentar carregar do cache local
+                    loadFromCache();
+                }
+            }
+
+            // Função para carregar do cache local
+            function loadFromCache() {
+                try {
+                    const cachedData = localStorage.getItem('iptv_playlist');
+                    const lastUpdate = localStorage.getItem('iptv_lastUpdate');
+                    
+                    if (cachedData && lastUpdate) {
+                        const data = JSON.parse(cachedData);
+                        const timeDiff = Date.now() - parseInt(lastUpdate);
+                        
+                        // Se o cache tem menos de 1 hora, usar ele
+                        if (timeDiff < 3600000) {
+                            currentPlaylist = data;
+                            channelData = data.categories;
+                            
+                            // Converter estrutura para compatibilidade
+                            const categories = {};
+                            Object.keys(channelData).forEach(categoryName => {
+                                categories[categoryName] = channelData[categoryName].channels;
+                            });
+                            channelData = categories;
+                            
+                            displayCategories(Object.keys(channelData));
+                            channelListElement.innerHTML = '<div class="list-header">Canais</div>';
+                            
+                            if (Object.keys(channelData).length > 0) {
+                                const firstCategory = Object.keys(channelData)[0];
+                                displayChannels(channelData[firstCategory]);
+                                document.querySelector('.category-item').classList.add('active');
+                            }
+                            
+                            showMessage('Usando dados em cache. Verifique sua conexão com o servidor.', 'info');
+                            console.log('📱 Usando playlist do cache local');
+                            return;
+                        }
+                    }
+                    
+                    showMessage('Nenhuma playlist disponível. Faça upload de um arquivo M3U.', 'error');
+                } catch (error) {
+                    console.error('Erro ao carregar cache:', error);
+                    showMessage('Erro ao carregar dados. Faça upload de um arquivo M3U.', 'error');
+                }
+            }
+
+            // Função para upload para o servidor
+            async function uploadToServer(file) {
+                try {
+                    showLoading('Enviando e processando arquivo...');
+                    
+                    const formData = new FormData();
+                    formData.append('playlist', file);
+                    
+                    const response = await fetch('/api/upload-playlist', {
+                        method: 'POST', 
+                        body: formData
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        hideLoading();
+                        showMessage(
+                            `✅ Playlist processada com sucesso! ${result.stats.totalChannels} canais em ${result.stats.totalCategories} categorias`, 
+                            'success'
+                        );
+                        
+                        // Recarregar playlist
+                        await loadPlaylistFromServer();
+                        
+                        // Limpar input
+                        m3uUpload.value = '';
+                    } else {
+                        hideLoading();
+                        showMessage('❌ Erro ao processar playlist: ' + result.error, 'error');
+                    }
+                } catch (error) {
+                    hideLoading();
+                    console.error('Erro ao enviar arquivo:', error);
+                    showMessage('❌ Erro ao enviar arquivo: ' + error.message, 'error');
+                }
+            }
+
+            // Funções de UI
+            function showLoading(message) {
+                const loadingDiv = document.createElement('div');
+                loadingDiv.id = 'loading-overlay';
+                loadingDiv.innerHTML = `
+                    <div style="
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background: rgba(0,0,0,0.8);
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        z-index: 9999;
+                        color: white;
+                        font-size: 18px;
+                    ">
+                        <div style="text-align: center;">
+                            <div style="
+                                width: 40px;
+                                height: 40px;
+                                border: 4px solid #3e82f7;
+                                border-top: 4px solid transparent;
+                                border-radius: 50%;
+                                animation: spin 1s linear infinite;
+                                margin: 0 auto 20px;
+                            "></div>
+                            ${message}
+                        </div>
+                    </div>
+                    <style>
+                        @keyframes spin {
+                            0% { transform: rotate(0deg); }
+                            100% { transform: rotate(360deg); }
+                        }
+                    </style>
+                `;
+                document.body.appendChild(loadingDiv);
+            }
+
+            function hideLoading() {
+                const loadingDiv = document.getElementById('loading-overlay');
+                if (loadingDiv) {
+                    loadingDiv.remove();
+                }
+            }
+
+            function showMessage(message, type = 'info') {
+                const messageDiv = document.createElement('div');
+                messageDiv.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    padding: 15px 20px;
+                    border-radius: 8px;
+                    color: white;
+                    font-weight: bold;
+                    z-index: 10000;
+                    max-width: 400px;
+                    word-wrap: break-word;
+                    animation: slideIn 0.3s ease-out;
+                `;
+                
+                const colors = {
+                    success: '#4CAF50',
+                    error: '#f44336',
+                    warning: '#ff9800',
+                    info: '#2196F3'
+                };
+                
+                messageDiv.style.backgroundColor = colors[type] || colors.info;
+                messageDiv.textContent = message;
+                
+                document.body.appendChild(messageDiv);
+                
+                setTimeout(() => {
+                    messageDiv.style.animation = 'slideOut 0.3s ease-in';
+                    setTimeout(() => messageDiv.remove(), 300);
+                }, 5000);
+                
+                // Adicionar CSS para animações
+                if (!document.getElementById('message-styles')) {
+                    const style = document.createElement('style');
+                    style.id = 'message-styles';
+                    style.textContent = `
+                        @keyframes slideIn {
+                            from { transform: translateX(100%); opacity: 0; }
+                            to { transform: translateX(0); opacity: 1; }
+                        }
+                        @keyframes slideOut {
+                            from { transform: translateX(0); opacity: 1; }
+                            to { transform: translateX(100%); opacity: 0; }
+                        }
+                    `;
+                    document.head.appendChild(style);
+                }
+            }
+
+
+            function displayCategories(categories) {
+                categoryListElement.innerHTML = '<div class="list-header">Categorias</div>';
+                categories.forEach(category => {
+                    const categoryItem = document.createElement('div');
+                    categoryItem.className = 'list-item category-item';
+                    categoryItem.innerHTML = `<span class="item-name">${category}</span>`;
+                    categoryItem.addEventListener('click', () => {
+                        displayChannels(channelData[category]);
+                        document.querySelectorAll('.category-item').forEach(el => el.classList.remove('active'));
+                        categoryItem.classList.add('active');
+                    });
+                    categoryListElement.appendChild(categoryItem);
+                });
+            }
+
+            function displayChannels(channels) {
+                channelListElement.innerHTML = '<div class="list-header">Canais</div>';
+                if (!channels) return;
+                channels.forEach(channel => {
+                    const channelItem = document.createElement('div');
+                    channelItem.className = 'list-item channel-item';
+                    
+                    const logoHtml = channel.logo ? `<img src="${channel.logo}" alt="" class="channel-logo" onerror="this.style.display='none';">` : '';
+                    channelItem.innerHTML = `${logoHtml}<span class="item-name">${channel.name}</span>`;
+
+                    channelItem.addEventListener('click', () => {
+                        playMedia(channel.url);
+                        document.querySelectorAll('.channel-item').forEach(el => el.classList.remove('active'));
+                        channelItem.classList.add('active');
+                    });
+                    channelListElement.appendChild(channelItem);
+                });
+            }
+
+            // ==========================================================
+            // NOVA FUNÇÃO DE REPRODUÇÃO - A MUDANÇA PRINCIPAL ESTÁ AQUI
+            // ==========================================================
+            function playMedia(url) {
+                // Limpa qualquer instância anterior do HLS.js
+                if (hls) {
+                    hls.destroy();
+                    hls = null;
+                }
+
+                // Verifica a extensão do arquivo
+                const isMp4 = url.toLowerCase().endsWith('.mp4');
+                const isM3u8 = url.toLowerCase().includes('.m3u8'); // Algumas URLs não terminam com .m3u8 mas contêm
+                const isTs = url.toLowerCase().endsWith('.ts');
+
+                // Se for MP4 (ou outro formato de vídeo direto)
+                if (isMp4) {
+                    console.log("Tipo: MP4. Usando player nativo.");
+                    videoPlayer.src = url;
+                    videoPlayer.load();
+                    videoPlayer.play().catch(e => console.error("Erro ao tocar MP4:", e));
+                } 
+                // Se for HLS (m3u8 ou ts)
+                else if (isM3u8 || isTs) {
+                     if (Hls.isSupported()) {
+                        console.log("Tipo: HLS. Usando HLS.js.");
+                        hls = new Hls();
+                        hls.loadSource(url);
+                        hls.attachMedia(videoPlayer);
+                        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                            videoPlayer.play().catch(e => console.error("Erro ao tocar HLS:", e));
+                        });
+                        hls.on(Hls.Events.ERROR, function (event, data) {
+                           console.error('HLS.js Error:', data);
+                        });
+                    } else if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+                        console.log("Tipo: HLS. Usando player nativo (Safari).");
+                        videoPlayer.src = url;
+                        videoPlayer.play().catch(e => console.error("Erro ao tocar HLS nativo:", e));
+                    }
+                }
+                // Se não for um formato conhecido
+                else {
+                    console.warn(`Formato desconhecido ou não suportado: ${url}`);
+                    alert(`Não foi possível determinar o tipo do vídeo para o link: ${url}`);
+                }
+            }
+        });
+    </script>
+
+</body>
+</html>
