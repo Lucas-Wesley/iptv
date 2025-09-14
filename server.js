@@ -72,7 +72,8 @@ async function parseM3U(content) {
             const groupMatch = metadataLine.match(/group-title="([^"]*)"/);
             const group = groupMatch ? groupMatch[1] : 'Sem Categoria';
 
-            const nameMatch = metadataLine.match(/,(.*)$/);
+            // Extrair nome - pegar tudo depois da última vírgula (nome real do canal)
+            const nameMatch = metadataLine.match(/,([^,]*)$/);
             const name = nameMatch ? nameMatch[1].trim() : 'Canal Desconhecido';
             
             
