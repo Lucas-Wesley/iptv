@@ -1,3 +1,6 @@
+// Carregar variáveis de ambiente
+require('dotenv').config();
+
 const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
@@ -8,15 +11,18 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: process.env.CORS_ORIGIN || '*',
+    credentials: true
+}));
 app.use(express.json());
 app.use(express.static('public'));
 
-// Criar diretórios necessários
-const dataDir = path.join(__dirname, 'data');
-const backupDir = path.join(dataDir, 'backup');
-const uploadsDir = path.join(__dirname, 'uploads');
-const categoriesDir = path.join(dataDir, 'categories');
+// Criar diretórios necessários usando variáveis de ambiente
+const dataDir = path.join(__dirname, process.env.DATA_DIR || 'data');
+const backupDir = path.join(dataDir, process.env.BACKUP_DIR || 'backup');
+const uploadsDir = path.join(__dirname, process.env.UPLOAD_DIR || 'uploads');
+const categoriesDir = path.join(dataDir, process.env.CATEGORIES_DIR || 'categories');
 
 fs.ensureDirSync(dataDir);
 fs.ensureDirSync(backupDir);
@@ -37,7 +43,7 @@ const storage = multer.diskStorage({
 const upload = multer({ 
     storage: storage,
     limits: { 
-        fileSize: 100 * 1024 * 1024, // 100MB limit
+        fileSize: parseInt(process.env.MAX_FILE_SIZE) || 100 * 1024 * 1024, // 100MB default
         files: 1
     },
     fileFilter: (req, file, cb) => {
@@ -157,17 +163,34 @@ async function parseM3U(content) {
         // Criar diretório categories se não existir
         await fs.ensureDir(path.join(dataDir, 'categories'));
         
+        // Calcular contagem apropriada baseada no tipo
+        let channelCount = categoryData.channels.length;
+        
+        // Para séries, contar séries únicas em vez de episódios
+        if (categoryName.startsWith('SÉRIES |')) {
+            const seriesGroups = {};
+            categoryData.channels.forEach(channel => {
+                // Extrair nome da série do formato "Nome da Série SXXEYY" ou "Nome da Série - SXXEYY"
+                const seriesMatch = channel.name.match(/^(.+?)\s*[-\s]*S\d+E\d+/);
+                if (seriesMatch) {
+                    const seriesName = seriesMatch[1].trim();
+                    seriesGroups[seriesName] = true;
+                }
+            });
+            channelCount = Object.keys(seriesGroups).length;
+        }
+        
         // Salvar arquivo da categoria
         await fs.writeJson(filePath, {
             name: categoryName,
             channels: categoryData.channels,
-            channelCount: categoryData.channels.length
+            channelCount: channelCount
         }, { spaces: 2 });
         
         categoryFiles.push({
             name: categoryName,
             fileName: fileName,
-            channelCount: categoryData.channels.length
+            channelCount: channelCount
         });
     }
     
@@ -463,6 +486,69 @@ app.get('/api/channels/:category', async (req, res) => {
         
     } catch (error) {
         console.error('Erro ao buscar canais:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Erro interno do servidor' 
+        });
+    }
+});
+
+// Rota para buscar todos os canais de um tipo específico
+app.get('/api/all-channels/:type', async (req, res) => {
+    try {
+        const { type } = req.params;
+        
+        if (!['canais', 'filmes', 'series'].includes(type)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Tipo inválido. Use: canais, filmes ou series'
+            });
+        }
+
+        // Buscar categorias do tipo específico
+        const groupedCategoriesPath = path.join(dataDir, 'grouped_categories.json');
+        
+        if (!await fs.pathExists(groupedCategoriesPath)) {
+            return res.status(404).json({ 
+                success: false, 
+                error: 'Nenhuma playlist encontrada' 
+            });
+        }
+        
+        const groupedData = await fs.readJson(groupedCategoriesPath);
+        const typeData = groupedData[type];
+        
+        if (!typeData || !typeData.categories) {
+            return res.status(404).json({ 
+                success: false, 
+                error: `Nenhuma categoria encontrada para o tipo '${type}'` 
+            });
+        }
+        
+        // Coletar todos os canais de todas as categorias do tipo
+        const allChannels = [];
+        
+        for (const category of typeData.categories) {
+            // Usar o fileName já definido no objeto da categoria
+            const fileName = category.fileName;
+            const categoryPath = path.join(dataDir, 'categories', fileName);
+            
+            if (await fs.pathExists(categoryPath)) {
+                const categoryData = await fs.readJson(categoryPath);
+                if (categoryData.channels) {
+                    allChannels.push(...categoryData.channels);
+                }
+            }
+        }
+        
+        res.json({
+            success: true,
+            type: type,
+            totalChannels: allChannels.length,
+            channels: allChannels
+        });
+    } catch (error) {
+        console.error('Erro ao buscar todos os canais:', error);
         res.status(500).json({ 
             success: false, 
             error: 'Erro interno do servidor' 

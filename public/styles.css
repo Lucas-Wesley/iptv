@@ -76,11 +76,19 @@ body {
 /* Barra de Busca */
 .search-container {
     position: relative;
-    width: 300px;
+    width: 350px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.search-container.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .search-input {
-    width: 100%;
+    flex: 1;
     padding: 0.75rem 1rem 0.75rem 3rem;
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
@@ -96,8 +104,90 @@ body {
     box-shadow: 0 0 0 2px rgba(229, 9, 20, 0.2);
 }
 
+.search-input:disabled {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+    color: var(--text-muted);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.search-container.disabled .search-input {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+    color: var(--text-muted);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.search-btn {
+    width: 40px;
+    height: 40px;
+    background: var(--gradient-primary);
+    border: none;
+    border-radius: 50%;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(229, 9, 20, 0.3);
+}
+
+.search-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(229, 9, 20, 0.4);
+}
+
+.search-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(229, 9, 20, 0.3);
+}
+
+.search-btn:disabled {
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.search-container.disabled .search-btn {
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
 .search-input::placeholder {
     color: var(--text-muted);
+}
+
+.category-title-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.search-results-count {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    text-align: center;
+    background: var(--bg-tertiary);
+    padding: 0.5rem 1rem;
+    border-radius: 15px;
+    border: 1px solid var(--border-color);
+    font-weight: 500;
+}
+
+.search-results-count.show {
+    display: block;
+}
+
+.search-results-count.hide {
+    display: none;
 }
 
 .search-icon {
@@ -413,6 +503,26 @@ body {
     box-shadow: var(--shadow);
 }
 
+.category-item.all-category {
+    background: linear-gradient(135deg, #f5c518, #ffd700);
+    color: var(--bg-primary);
+    font-weight: 600;
+    border: 2px solid transparent;
+}
+
+.category-item.all-category:hover {
+    background: linear-gradient(135deg, #ffd700, #f5c518);
+    transform: translateX(5px);
+    box-shadow: 0 4px 15px rgba(245, 197, 24, 0.4);
+}
+
+.category-item.all-category.active {
+    background: linear-gradient(135deg, #ffd700, #f5c518);
+    color: var(--bg-primary);
+    transform: translateX(5px);
+    box-shadow: 0 4px 15px rgba(245, 197, 24, 0.4);
+}
+
 .category-icon {
     font-size: 1.2rem;
     width: 20px;
@@ -699,7 +809,7 @@ body {
     
     .search-container {
         width: 100%;
-        max-width: 400px;
+        max-width: 450px;
     }
     
     .channels-grid {
@@ -763,7 +873,7 @@ body {
     }
 }
 
-/* Scrollbar Personalizada */
+/* Scrollbar Personalizada - Estilo Unificado */
 ::-webkit-scrollbar {
     width: 12px;
 }
@@ -780,22 +890,23 @@ body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--text-muted);
+    background: var(--accent-primary);
 }
 
 /* Scrollbar específica para categorias */
 .category-list::-webkit-scrollbar {
-    width: 10px;
+    width: 12px;
 }
 
 .category-list::-webkit-scrollbar-track {
-    background: transparent;
+    background: var(--bg-secondary);
+    border-radius: 6px;
 }
 
 .category-list::-webkit-scrollbar-thumb {
-    background: var(--border-color);
-    border-radius: 5px;
-    border: 1px solid var(--bg-secondary);
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    border: 2px solid var(--bg-secondary);
 }
 
 .category-list::-webkit-scrollbar-thumb:hover {
@@ -808,18 +919,30 @@ body {
 }
 
 .channels-grid::-webkit-scrollbar-track {
-    background: var(--bg-primary);
+    background: var(--bg-secondary);
     border-radius: 6px;
 }
 
 .channels-grid::-webkit-scrollbar-thumb {
     background: var(--bg-tertiary);
     border-radius: 6px;
-    border: 2px solid var(--bg-primary);
+    border: 2px solid var(--bg-secondary);
 }
 
 .channels-grid::-webkit-scrollbar-thumb:hover {
     background: var(--accent-primary);
+}
+
+/* Scrollbar para elementos gerais que podem ter scroll */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--bg-tertiary) var(--bg-secondary);
+}
+
+/* Garantir que todos os elementos com scroll tenham o estilo customizado */
+[style*="overflow-y: auto"], [style*="overflow: auto"] {
+    scrollbar-width: thin;
+    scrollbar-color: var(--bg-tertiary) var(--bg-secondary);
 }
 
 /* Estilos para Séries */

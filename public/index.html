@@ -21,7 +21,10 @@
                 <!-- Barra de Busca -->
                 <div class="search-container">
                     <i class="fas fa-search search-icon"></i>
-                    <input type="text" class="search-input" id="search-input" placeholder="Buscar canais...">
+                    <input type="text" class="search-input" id="search-input" placeholder="Busca disponível após selecionar uma categoria">
+                    <button class="search-btn" id="search-btn" type="button">
+                        <i class="fas fa-search"></i>
+                    </button>
                 </div>
                 
                 <!-- Upload Button -->
@@ -98,15 +101,18 @@
                 </div>
             </div>
 
-            <!-- Página de Categoria -->
-            <div class="category-page" id="category-page" style="display: none;">
-                <div class="category-header">
-                    <button class="btn btn-secondary" id="back-to-main">
-                        <i class="fas fa-home"></i>
-                        Início
-                    </button>
-                    <h2 id="category-page-title">Categoria</h2>
-                </div>
+                <!-- Página de Categoria -->
+                <div class="category-page" id="category-page" style="display: none;">
+                    <div class="category-header">
+                        <button class="btn btn-secondary" id="back-to-main">
+                            <i class="fas fa-home"></i>
+                            Início
+                        </button>
+                        <div class="category-title-container">
+                            <h2 id="category-page-title">Categoria</h2>
+                            <div class="search-results-count" id="search-results-count" style="display: none;"></div>
+                        </div>
+                    </div>
                 
                 <!-- Player -->
                 <div class="player-container" id="player-container">
